@@ -27,16 +27,35 @@
         import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, addDoc, deleteDoc, writeBatch, query, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-        // Firebase Setup
-        const firebaseConfig = JSON.parse(window.__firebase_config || '{}');
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        /** * IMPORTANT: To deploy on Vercel, you must paste your Firebase Config here.
+         * Get this from your Firebase Console -> Project Settings.
+         */
+        const myVercelConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Use environment config if available (sandbox), otherwise use the hardcoded one (Vercel)
+        const firebaseConfig = window.__firebase_config ? JSON.parse(window.__firebase_config) : myVercelConfig;
+        
+        let app, auth, db;
         const appId = window.__app_id || 'shuttle-sip-v1';
         const initialToken = window.__initial_auth_token;
 
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+        } catch (e) {
+            console.error("Firebase Init Error:", e);
+        }
+
         window.FirebaseAPI = { 
-            db, auth, appId, initialToken, 
+            db, auth, appId, initialToken, hasConfig: !!firebaseConfig.apiKey,
             collection, doc, setDoc, onSnapshot, updateDoc, addDoc, deleteDoc, writeBatch, query, getDoc,
             signInWithCustomToken, signInAnonymously, onAuthStateChanged 
         };
@@ -98,14 +117,13 @@
             const [logs, setLogs] = useState([]);
             const [vendorBalance, setVendorBalance] = useState({ total_billed: 0, total_paid: 0 });
             const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
             const [isSubmitting, setIsSubmitting] = useState(false);
             const [isInputFocused, setIsInputFocused] = useState(false);
 
-            // Admin Logic
             const [pinInput, setPinInput] = useState('');
             const [pinError, setPinError] = useState(false);
 
-            // Logging States
             const [menuSearch, setMenuSearch] = useState('');
             const [selectedItems, setSelectedItems] = useState({});
             const [selectedAttendees, setSelectedAttendees] = useState([]);
@@ -119,26 +137,43 @@
                 const storedAdmin = localStorage.getItem('ss_admin_active');
                 if (storedAdmin === 'true') setIsAdmin(true);
 
-                const initAuth = async () => {
-                    const { auth, initialToken, signInWithCustomToken, signInAnonymously, onAuthStateChanged } = window.FirebaseAPI;
-                    try {
-                        if (initialToken) await signInWithCustomToken(auth, initialToken);
-                        else await signInAnonymously(auth);
-                    } catch (err) { console.error("Auth Error", err); }
-                };
-                
-                const timer = setInterval(() => {
+                const checkInterval = setInterval(() => {
                     if (window.FirebaseAPI) {
-                        clearInterval(timer);
-                        initAuth();
-                        window.FirebaseAPI.onAuthStateChanged(window.FirebaseAPI.auth, setUser);
+                        clearInterval(checkInterval);
+                        if (!window.FirebaseAPI.hasConfig) {
+                            setError("Firebase Config Missing. Please edit index.html to add your keys.");
+                            setLoading(false);
+                            return;
+                        }
+                        initApp();
                     }
                 }, 100);
-                return () => clearInterval(timer);
+                return () => clearInterval(checkInterval);
             }, []);
 
-            useEffect(() => {
-                if (!user) return;
+            const initApp = async () => {
+                const { auth, initialToken, signInWithCustomToken, signInAnonymously, onAuthStateChanged } = window.FirebaseAPI;
+                try {
+                    if (initialToken) await signInWithCustomToken(auth, initialToken);
+                    else await signInAnonymously(auth);
+                    
+                    onAuthStateChanged(auth, (u) => {
+                        if (u) {
+                            setUser(u);
+                            setupDataListeners();
+                        } else {
+                            setError("Authentication Failed.");
+                            setLoading(false);
+                        }
+                    });
+                } catch (err) { 
+                    console.error("Auth Error", err);
+                    setError("Could not connect to database.");
+                    setLoading(false);
+                }
+            };
+
+            const setupDataListeners = () => {
                 const { db, appId, collection, doc, onSnapshot, writeBatch, setDoc } = window.FirebaseAPI;
 
                 const membersRef = collection(db, 'artifacts', appId, 'public', 'data', 'members');
@@ -150,12 +185,12 @@
                     if (s.empty) {
                         const batch = writeBatch(db);
                         INITIAL_PLAYERS.forEach(name => {
-                            const id = `p_${name.toLowerCase()}_${Date.now()}`;
+                            const id = `p_${name.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                             batch.set(doc(membersRef, id), { id, name, totalOwed: 0, totalPaid: 0 });
                         });
                         await batch.commit();
                     } else setMembers(s.docs.map(d => ({id: d.id, ...d.data()})));
-                });
+                }, (err) => console.error("Members error:", err));
 
                 const unsubMenu = onSnapshot(menuRef, async (s) => {
                     if (s.empty) {
@@ -163,20 +198,23 @@
                         GULABJI_MENU.forEach((item, idx) => batch.set(doc(menuRef, `g_${idx}`), {id: `g_${idx}`, ...item}));
                         await batch.commit();
                     } else setMenu(s.docs.map(d => ({id: d.id, ...d.data()})));
-                });
+                }, (err) => console.error("Menu error:", err));
 
                 const unsubVendor = onSnapshot(vendorRef, (s) => {
                     if (s.exists()) setVendorBalance(s.data());
                     else setDoc(vendorRef, { total_billed: 0, total_paid: 0 });
-                });
+                }, (err) => console.error("Vendor error:", err));
 
-                onSnapshot(logsRef, (s) => {
+                const unsubLogs = onSnapshot(logsRef, (s) => {
                     setLogs(s.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.timestamp - a.timestamp));
                     setLoading(false);
+                }, (err) => { 
+                    console.error("Logs error:", err); 
+                    setLoading(false); 
                 });
 
-                return () => { unsubMembers(); unsubMenu(); unsubVendor(); };
-            }, [user]);
+                return () => { unsubMembers(); unsubMenu(); unsubLogs(); unsubVendor(); };
+            };
 
             const currentTotal = Object.entries(selectedItems).reduce((sum, [id, qty]) => {
                 const item = menu.find(m => m.id === id);
@@ -272,7 +310,16 @@
             if (loading) return (
                 <div className="h-screen flex flex-col items-center justify-center bg-gray-950 text-white p-10 text-center">
                     <Icon name="loader-2" size={40} className="animate-spin text-[#D1605E] mb-4" />
-                    <p className="font-black uppercase tracking-widest animate-pulse text-sm">Gulabji's Cloud Sync...</p>
+                    <p className="font-black uppercase tracking-widest animate-pulse text-xs">Gulabji's Cloud Sync...</p>
+                </div>
+            );
+
+            if (error) return (
+                <div className="h-screen flex flex-col items-center justify-center bg-gray-950 text-white p-10 text-center">
+                    <Icon name="alert-triangle" size={40} className="text-red-500 mb-4" />
+                    <h2 className="text-xl font-black mb-2">Connection Error</h2>
+                    <p className="text-sm text-gray-400 mb-6">{error}</p>
+                    <button onClick={() => window.location.reload()} className="bg-[#D1605E] px-6 py-2 rounded-xl font-bold">RETRY</button>
                 </div>
             );
 
@@ -322,23 +369,23 @@
                                                 const { db, appId, doc, setDoc } = window.FirebaseAPI;
                                                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'menu', `q_${Date.now()}`), {id: `q_${Date.now()}`, ...quickItem, price: parseInt(quickItem.price)});
                                                 setQuickItem({name:'', price:'', category:'Chai'}); setShowQuickAddItem(false); setIsInputFocused(false);
-                                            }} className="flex-1 bg-[#2D6A4F] text-white text-[10px] font-black rounded-xl">SAVE</button>
+                                            }} className="flex-1 bg-[#2D6A4F] text-white text-[10px] font-black rounded-xl py-2">SAVE</button>
                                         </div>
                                     </div>
                                 )}
 
                                 <section>
                                     <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">1. Select Items</h2>
-                                    <div className="space-y-3 max-h-[250px] overflow-y-auto no-scrollbar border-b border-slate-100 pb-2">
+                                    <div className="space-y-3 max-h-[300px] overflow-y-auto no-scrollbar border-b border-slate-100 pb-2">
                                         {menu.filter(m => m.name.toLowerCase().includes(menuSearch.toLowerCase())).map(item => (
                                             <div key={item.id} className="flex items-center justify-between p-3 bg-white rounded-2xl shadow-sm border border-slate-50">
                                                 <div className="flex-1">
                                                     <p className="font-bold text-xs text-slate-700 leading-tight">{item.name}</p>
-                                                    <p className="text-[10px] text-[#D1605E] font-black mt-1 uppercase tracking-tighter">₹{item.price}</p>
+                                                    <p className="text-[10px] text-[#D1605E] font-black mt-1">₹{item.price}</p>
                                                 </div>
                                                 <div className="flex items-center gap-2 bg-slate-50 rounded-lg p-1">
                                                     <button onClick={() => handleItemQty(item.id, -1)} className="w-7 h-7 rounded bg-white border border-slate-200 flex items-center justify-center text-[#D1605E]"><Icon name="minus" size={14}/></button>
-                                                    <span className="w-5 text-center font-black text-xs">{selectedItems[item.id] || 0}</span>
+                                                    <span className="w-4 text-center font-black text-xs">{selectedItems[item.id] || 0}</span>
                                                     <button onClick={() => handleItemQty(item.id, 1)} className="w-7 h-7 rounded bg-[#2D6A4F] text-white flex items-center justify-center"><Icon name="plus" size={14}/></button>
                                                 </div>
                                             </div>
@@ -360,7 +407,7 @@
                                 )}
 
                                 <section className="pb-44">
-                                    <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">2. Attendees ({selectedAttendees.length})</h2>
+                                    <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">2. Attendees Selection ({selectedAttendees.length})</h2>
                                     <div className="grid grid-cols-2 gap-2">
                                         {members.sort((a,b) => a.name.localeCompare(b.name)).map(m => (
                                             <button key={m.id} onClick={() => setSelectedAttendees(p => p.includes(m.id) ? p.filter(id => id !== m.id) : [...p, m.id])} className={`flex items-center p-3 rounded-2xl border transition-all text-left ${selectedAttendees.includes(m.id) ? 'bg-[#2D6A4F] text-white border-[#2D6A4F]' : 'bg-white text-slate-500 border-slate-100 shadow-sm'}`}>
@@ -449,11 +496,11 @@
                                         <div className="space-y-4">
                                             <input type="password" placeholder="PIN" className={`w-full bg-slate-50 border ${pinError ? 'border-red-500 bg-red-50' : 'border-slate-200'} rounded-2xl py-4 px-4 text-center font-black tracking-[0.5em] text-lg outline-none`} value={pinInput} onChange={(e) => setPinInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAdminLogin()} />
                                             {pinError && <p className="text-red-500 text-[10px] font-black uppercase">Wrong PIN.</p>}
-                                            <button onClick={handleAdminLogin} className="w-full bg-[#D1605E] text-white py-4 rounded-2xl font-black shadow-lg">UNLOCK</button>
+                                            <button onClick={handleAdminLogin} className="w-full bg-[#D1605E] text-white py-4 rounded-2xl font-black shadow-lg uppercase">Unlock</button>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="space-y-8 pb-10">
+                                    <div className="space-y-8 pb-10 text-slate-600">
                                         <section className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-lg relative">
                                             <button onClick={() => { setIsAdmin(false); localStorage.removeItem('ss_admin_active'); }} className="absolute top-4 right-4 text-[10px] font-black text-slate-300 border px-2 py-1 rounded-lg uppercase">Logout</button>
                                             <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-1 flex items-center gap-2"><Icon name="user-plus" size={12}/> Directory</h2>
@@ -466,7 +513,7 @@
                                             }} />
                                             <div className="bg-slate-50 rounded-2xl divide-y divide-white overflow-hidden max-h-64 overflow-y-auto no-scrollbar">
                                                 {members.sort((a,b) => a.name.localeCompare(b.name)).map(m => (
-                                                    <div key={m.id} className="flex items-center justify-between p-4"><span className="font-bold text-sm text-slate-700">{m.name}</span><button onClick={async () => { if (confirm(`Delete ${m.name}?`)) await window.FirebaseAPI.deleteDoc(window.FirebaseAPI.doc(window.FirebaseAPI.db, 'artifacts', window.FirebaseAPI.appId, 'public', 'data', 'members', m.id)); }} className="text-slate-200"><Icon name="trash-2" size={16}/></button></div>
+                                                    <div key={m.id} className="flex items-center justify-between p-4 bg-transparent"><span className="font-bold text-sm text-slate-700">{m.name}</span><button onClick={async () => { if (confirm(`Delete ${m.name}?`)) await window.FirebaseAPI.deleteDoc(window.FirebaseAPI.doc(window.FirebaseAPI.db, 'artifacts', window.FirebaseAPI.appId, 'public', 'data', 'members', m.id)); }} className="text-slate-200 hover:text-red-500"><Icon name="trash-2" size={16}/></button></div>
                                                 ))}
                                             </div>
                                         </section>
