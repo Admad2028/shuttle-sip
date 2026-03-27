@@ -1,0 +1,87 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2685.4">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+  </style>
+</head>
+<body>
+<p class="p1">&lt;!DOCTYPE html&gt;</p>
+<p class="p1">&lt;html&gt;</p>
+<p class="p1">&lt;head&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;title&gt;Shuttle &amp; Sip&lt;/title&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;meta name="viewport" content="width=device-width, initial-scale=1" /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;style&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>body { font-family: Arial; padding: 20px; background:#f5f5f5; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>h1 { color:#D1605E; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>button { padding:10px; margin:5px; border:none; border-radius:8px; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.item { background:white; padding:10px; margin:5px 0; border-radius:10px; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.green { background:#2D6A4F; color:white; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>.red { background:#D1605E; color:white; }</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/style&gt;</p>
+<p class="p1">&lt;/head&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;body&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;h1&gt;☕ Shuttle &amp; Sip&lt;/h1&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;h3&gt;Add Items&lt;/h3&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;div id="menu"&gt;&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;h3&gt;Total: ₹&lt;span id="total"&gt;0&lt;/span&gt;&lt;/h3&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;button class="red" onclick="reset()"&gt;Reset&lt;/button&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;script&gt;</p>
+<p class="p1">const menu = [</p>
+<p class="p1"><span class="Apple-converted-space">  </span>{ name: "Chai", price: 30 },</p>
+<p class="p1"><span class="Apple-converted-space">  </span>{ name: "Coffee", price: 35 },</p>
+<p class="p1"><span class="Apple-converted-space">  </span>{ name: "Samosa", price: 30 },</p>
+<p class="p1"><span class="Apple-converted-space">  </span>{ name: "Kachori", price: 30 },</p>
+<p class="p1"><span class="Apple-converted-space">  </span>{ name: "Sandwich", price: 70 }</p>
+<p class="p1">];</p>
+<p class="p2"><br></p>
+<p class="p1">let total = 0;</p>
+<p class="p2"><br></p>
+<p class="p1">function render() {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const container = document.getElementById("menu");</p>
+<p class="p1"><span class="Apple-converted-space">  </span>container.innerHTML = "";</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>menu.forEach(item =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const div = document.createElement("div");</p>
+<p class="p1"><span class="Apple-converted-space">    </span>div.className = "item";</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>div.innerHTML = `</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;b&gt;${item.name}&lt;/b&gt; - ₹${item.price}</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;br/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;button class="green" onclick="add(${item.price})"&gt;Add&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>`;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>container.appendChild(div);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>});</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function add(price) {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>total += price;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>document.getElementById("total").innerText = total;</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">function reset() {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>total = 0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>document.getElementById("total").innerText = 0;</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">render();</p>
+<p class="p1">&lt;/script&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;/body&gt;</p>
+<p class="p1">&lt;/html&gt;</p>
+</body>
+</html>
