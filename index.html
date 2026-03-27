@@ -28,7 +28,10 @@
         import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
         /** * 🔧 VERCEL DEPLOYMENT STEP:
-         * Paste your Firebase Config from the Firebase Console (Project Settings) below.
+         * 1. Go to Firebase Console (https://console.firebase.google.com/)
+         * 2. Create a free project.
+         * 3. Register a "Web App" to get your config object.
+         * 4. Paste your keys below:
          */
         const myVercelConfig = {
             apiKey: "", 
@@ -39,7 +42,7 @@
             appId: ""
         };
 
-        // Determine if we use environment variables (Sandbox) or hardcoded config (Vercel)
+        // Determine environment
         const envConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const firebaseConfig = envConfig || myVercelConfig;
         
@@ -49,7 +52,8 @@
         let app, auth, db;
         let isConfigured = false;
 
-        if (firebaseConfig && firebaseConfig.apiKey) {
+        // Ensure we only mark as configured if keys actually exist
+        if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY") {
             try {
                 app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
@@ -147,7 +151,7 @@
                     if (window.FirebaseAPI) {
                         clearInterval(checkInterval);
                         if (!window.FirebaseAPI.isConfigured) {
-                            setError("Firebase Setup Required: To deploy on Vercel, you must add your Firebase API keys to index.html.");
+                            setError("Firebase Keys Missing: To save data on Vercel, you must paste your Firebase Config from the console into index.html.");
                             setLoading(false);
                         } else {
                             initApp();
@@ -168,13 +172,13 @@
                             setUser(u);
                             setupDataListeners();
                         } else {
-                            setError("Auth session failed. Please refresh.");
+                            setError("Session expired. Please refresh.");
                             setLoading(false);
                         }
                     });
                 } catch (err) { 
                     console.error("Connection Error", err);
-                    setError("Could not connect to Firebase. Check your keys and database rules.");
+                    setError("Database connection error. Verify your Firebase config and security rules.");
                     setLoading(false);
                 }
             };
@@ -196,7 +200,7 @@
                         });
                         await batch.commit();
                     } else setMembers(s.docs.map(d => ({id: d.id, ...d.data()})));
-                }, (err) => { console.error("Database Permission Error (Members)", err); });
+                }, (err) => console.error("Members error:", err));
 
                 const unsubMenu = onSnapshot(menuRef, async (s) => {
                     if (s.empty) {
@@ -204,18 +208,18 @@
                         GULABJI_MENU.forEach((item, idx) => batch.set(doc(menuRef, `g_${idx}`), {id: `g_${idx}`, ...item}));
                         await batch.commit();
                     } else setMenu(s.docs.map(d => ({id: d.id, ...d.data()})));
-                }, (err) => { console.error("Database Permission Error (Menu)", err); });
+                }, (err) => console.error("Menu error:", err));
 
                 const unsubVendor = onSnapshot(vendorRef, (s) => {
                     if (s.exists()) setVendorBalance(s.data());
                     else setDoc(vendorRef, { total_billed: 0, total_paid: 0 });
-                }, (err) => { console.error("Database Permission Error (Vendor)", err); });
+                }, (err) => console.error("Vendor error:", err));
 
                 const unsubLogs = onSnapshot(logsRef, (s) => {
                     setLogs(s.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.timestamp - a.timestamp));
                     setLoading(false);
                 }, (err) => { 
-                    console.error("Database Permission Error (Logs)", err); 
+                    console.error("Logs error:", err); 
                     setLoading(false); 
                 });
 
@@ -322,25 +326,25 @@
 
             if (error) return (
                 <div className="h-screen flex flex-col items-center justify-center bg-gray-950 text-white p-10 text-center">
-                    <Icon name="alert-triangle" size={40} className="text-[#D1605E] mb-4" />
-                    <h2 className="text-xl font-black mb-2 uppercase tracking-tighter text-red-500">Action Required</h2>
+                    <Icon name="alert-triangle" size={40} className="text-red-500 mb-4" />
+                    <h2 className="text-xl font-black mb-2 uppercase tracking-tighter">Connection Error</h2>
                     <p className="text-sm text-gray-400 mb-8 max-w-xs mx-auto leading-relaxed">{error}</p>
                     <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] text-left space-y-4 max-w-sm">
-                        <p className="text-xs font-bold text-white uppercase tracking-widest border-b border-white/10 pb-2">Vercel Setup Guide:</p>
+                        <p className="text-xs font-bold text-white uppercase tracking-widest border-b border-white/10 pb-2">Firebase Setup Guide:</p>
                         <div className="flex gap-3">
                             <div className="w-5 h-5 rounded-full bg-[#D1605E] text-[10px] flex items-center justify-center flex-shrink-0">1</div>
                             <p className="text-[11px] text-gray-300">Go to <b>Firebase Console</b> and create a project.</p>
                         </div>
                         <div className="flex gap-3">
                             <div className="w-5 h-5 rounded-full bg-[#D1605E] text-[10px] flex items-center justify-center flex-shrink-0">2</div>
-                            <p className="text-[11px] text-gray-300">Copy the <b>Web Config Object</b> from project settings.</p>
+                            <p className="text-[11px] text-gray-300">Copy your <b>Config Object</b> (apiKey, appId, etc.)</p>
                         </div>
                         <div className="flex gap-3">
                             <div className="w-5 h-5 rounded-full bg-[#D1605E] text-[10px] flex items-center justify-center flex-shrink-0">3</div>
-                            <p className="text-[11px] text-gray-300">Paste it into the top of your <b>index.html</b> file.</p>
+                            <p className="text-[11px] text-gray-300">Paste it into the <b>index.html</b> file under <code className="bg-white/10 px-1">myVercelConfig</code>.</p>
                         </div>
                     </div>
-                    <button onClick={() => window.location.reload()} className="mt-8 bg-white text-gray-950 px-10 py-3 rounded-2xl font-black text-sm active:scale-95 transition-all">RETRY CONNECTION</button>
+                    <button onClick={() => window.location.reload()} className="mt-8 bg-white text-gray-950 px-10 py-3 rounded-2xl font-black text-sm active:scale-95 transition-all">I'VE ADDED MY KEYS</button>
                 </div>
             );
 
@@ -350,13 +354,13 @@
                         {!isInputFocused && (
                             <div className="flex justify-between items-start mb-4 px-1">
                                 <div>
-                                    <h1 className="text-2xl font-black italic tracking-tighter leading-none flex items-center gap-2">
+                                    <h1 className="text-2xl font-black italic tracking-tighter leading-none flex items-center gap-2 uppercase">
                                         SHUTTLE & SIP {isAdmin && <Icon name="shield-check" size={16} className="text-white/60" />}
                                     </h1>
                                     <p className="text-[10px] font-bold opacity-80 mt-1 uppercase">Gulabji Chai Wale</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[9px] font-black opacity-70 uppercase tracking-tighter">Players Owe</p>
+                                    <p className="text-[9px] font-black opacity-70 uppercase">Players Owe</p>
                                     <p className="text-2xl font-black">₹{totalPlayerDebt.toFixed(0)}</p>
                                 </div>
                             </div>
@@ -382,15 +386,15 @@
                             <div className="space-y-6 animate-in">
                                 {isAdmin && showQuickAddItem && (
                                     <div className="bg-white p-4 rounded-3xl border-2 border-[#D1605E]/20 mb-4 shadow-xl space-y-3">
-                                        <input placeholder="New Item Name" className="w-full text-sm border-b p-2 outline-none font-bold text-slate-800" value={quickItem.name} onChange={e => setQuickItem({...quickItem, name: e.target.value})} onFocus={() => setIsInputFocused(true)} />
+                                        <input placeholder="New Item Name" className="w-full text-sm border-b p-2 outline-none font-bold" value={quickItem.name} onChange={e => setQuickItem({...quickItem, name: e.target.value})} onFocus={() => setIsInputFocused(true)} />
                                         <div className="flex gap-2">
-                                            <input type="number" placeholder="Price" className="w-1/2 text-sm border-b p-2 outline-none font-bold text-slate-800" value={quickItem.price} onChange={e => setQuickItem({...quickItem, price: e.target.value})} onFocus={() => setIsInputFocused(true)} />
+                                            <input type="number" placeholder="Price" className="w-1/2 text-sm border-b p-2 outline-none font-bold" value={quickItem.price} onChange={e => setQuickItem({...quickItem, price: e.target.value})} onFocus={() => setIsInputFocused(true)} />
                                             <button onClick={async () => {
                                                 if(!quickItem.name || !quickItem.price) return;
                                                 const { db, appId, doc, setDoc } = window.FirebaseAPI;
                                                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'menu', `q_${Date.now()}`), {id: `q_${Date.now()}`, ...quickItem, price: parseInt(quickItem.price)});
                                                 setQuickItem({name:'', price:'', category:'Chai'}); setShowQuickAddItem(false); setIsInputFocused(false);
-                                            }} className="flex-1 bg-[#2D6A4F] text-white text-[10px] font-black rounded-xl py-2 shadow-md">SAVE</button>
+                                            }} className="flex-1 bg-[#2D6A4F] text-white text-[10px] font-black rounded-xl py-2">SAVE</button>
                                         </div>
                                     </div>
                                 )}
@@ -428,7 +432,7 @@
                                 )}
 
                                 <section className="pb-44">
-                                    <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">2. Attendees Selection ({selectedAttendees.length})</h2>
+                                    <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">2. Attendees ({selectedAttendees.length})</h2>
                                     <div className="grid grid-cols-2 gap-2">
                                         {members.sort((a,b) => a.name.localeCompare(b.name)).map(m => (
                                             <button key={m.id} onClick={() => setSelectedAttendees(p => p.includes(m.id) ? p.filter(id => id !== m.id) : [...p, m.id])} className={`flex items-center p-3 rounded-2xl border transition-all text-left ${selectedAttendees.includes(m.id) ? 'bg-[#2D6A4F] text-white border-[#2D6A4F]' : 'bg-white text-slate-500 border-slate-100 shadow-sm'}`}>
@@ -524,7 +528,7 @@
                                 ) : (
                                     <div className="space-y-8 pb-10 text-slate-600">
                                         <section className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-lg relative">
-                                            <button onClick={() => { setIsAdmin(false); localStorage.removeItem('ss_admin_active'); }} className="absolute top-4 right-4 text-[9px] font-black text-slate-400 border px-3 py-1 rounded-lg uppercase bg-slate-50 shadow-sm">Logout</button>
+                                            <button onClick={() => { setIsAdmin(false); localStorage.removeItem('ss_admin_active'); }} className="absolute top-4 right-4 text-[10px] font-black text-slate-400 border px-3 py-1 rounded-lg uppercase bg-slate-50 shadow-sm">Logout</button>
                                             <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-1 flex items-center gap-2"><Icon name="user-plus" size={12}/> Player Directory</h2>
                                             <input placeholder="Add Player Name" className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#D1605E] font-bold mb-4" onFocus={() => setIsInputFocused(true)} onKeyDown={async (e) => { 
                                                 if (e.key === 'Enter' && e.target.value.trim()) { 
