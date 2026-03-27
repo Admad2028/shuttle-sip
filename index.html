@@ -6,10 +6,11 @@
   <style>
     body { font-family: Arial; padding: 20px; background:#f5f5f5; }
     h1 { color:#D1605E; }
-    button { padding:10px; margin:5px; border:none; border-radius:8px; }
-    .item { background:white; padding:10px; margin:5px 0; border-radius:10px; }
+    button { padding:8px 12px; margin:4px; border:none; border-radius:8px; }
+    .item, .player { background:white; padding:10px; margin:5px 0; border-radius:10px; }
     .green { background:#2D6A4F; color:white; }
     .red { background:#D1605E; color:white; }
+    .selected { border:2px solid #2D6A4F; }
   </style>
 </head>
 
@@ -17,13 +18,21 @@
 
 <h1>☕ Shuttle & Sip</h1>
 
-<h3>Add Items</h3>
-
+<h3>1. Add Items</h3>
 <div id="menu"></div>
 
 <h3>Total: ₹<span id="total">0</span></h3>
 
+<h3>2. Select Players</h3>
+<div id="players"></div>
+
+<h3>Split per person: ₹<span id="split">0</span></h3>
+
+<button class="green" onclick="submit()">Submit Session</button>
 <button class="red" onclick="reset()">Reset</button>
+
+<h3>Balances</h3>
+<div id="balances"></div>
 
 <script>
 const menu = [
@@ -34,22 +43,50 @@ const menu = [
   { name: "Sandwich", price: 70 }
 ];
 
+let players = ["Aditya", "Udit", "Pankaj", "Yogesh"];
+
+let balances = {};
+players.forEach(p => balances[p] = 0);
+
+let selectedPlayers = [];
 let total = 0;
 
-function render() {
+function renderMenu() {
   const container = document.getElementById("menu");
   container.innerHTML = "";
 
   menu.forEach(item => {
     const div = document.createElement("div");
     div.className = "item";
-
     div.innerHTML = `
       <b>${item.name}</b> - ₹${item.price}
-      <br/>
       <button class="green" onclick="add(${item.price})">Add</button>
     `;
+    container.appendChild(div);
+  });
+}
 
+function renderPlayers() {
+  const container = document.getElementById("players");
+  container.innerHTML = "";
+
+  players.forEach(p => {
+    const div = document.createElement("div");
+    div.className = "player " + (selectedPlayers.includes(p) ? "selected" : "");
+    div.innerHTML = `<b>${p}</b>`;
+    div.onclick = () => togglePlayer(p);
+    container.appendChild(div);
+  });
+}
+
+function renderBalances() {
+  const container = document.getElementById("balances");
+  container.innerHTML = "";
+
+  Object.keys(balances).forEach(p => {
+    const div = document.createElement("div");
+    div.className = "player";
+    div.innerHTML = `${p}: ₹${balances[p].toFixed(0)}`;
     container.appendChild(div);
   });
 }
@@ -57,14 +94,48 @@ function render() {
 function add(price) {
   total += price;
   document.getElementById("total").innerText = total;
+  updateSplit();
+}
+
+function togglePlayer(p) {
+  if (selectedPlayers.includes(p)) {
+    selectedPlayers = selectedPlayers.filter(x => x !== p);
+  } else {
+    selectedPlayers.push(p);
+  }
+  renderPlayers();
+  updateSplit();
+}
+
+function updateSplit() {
+  let split = selectedPlayers.length ? total / selectedPlayers.length : 0;
+  document.getElementById("split").innerText = split.toFixed(0);
+}
+
+function submit() {
+  if (!selectedPlayers.length || total === 0) return;
+
+  let split = total / selectedPlayers.length;
+
+  selectedPlayers.forEach(p => {
+    balances[p] += split;
+  });
+
+  reset();
+  renderBalances();
 }
 
 function reset() {
   total = 0;
+  selectedPlayers = [];
   document.getElementById("total").innerText = 0;
+  document.getElementById("split").innerText = 0;
+  renderPlayers();
 }
 
-render();
+renderMenu();
+renderPlayers();
+renderBalances();
 </script>
 
 </body>
